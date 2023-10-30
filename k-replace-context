@@ -1,0 +1,42 @@
+#!/usr/bin/env bash
+
+readonly DEFAULT_CONF='default'
+CONFIG_NAME=''
+
+POSITIONAL_ARGS=()
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -c|--config)
+      if [ -z "$2" ]; then
+        echo "-c|--config) option require an argument" 1>&2
+        exit 1
+      fi
+      CONFIG_NAME="$2"
+      shift
+      shift
+      ;;
+    --)
+      shift
+      POSITIONAL_ARGS+=("$@")
+      set --
+      ;;
+    -*)
+      echo "unknown option $1"
+      exit 1
+      ;;
+    *)
+      POSITIONAL_ARGS+=("$1");
+      shift
+      ;;
+  esac
+done
+set -- "${POSITIONAL_ARGS[@]}"
+unset POSITIONAL_ARGS
+
+if [ -z "$1" ]; then
+  echo "missing cluster name" 1>&2
+  exit 1
+fi
+
+CONFIG_NAME="-c ${CONFIG_NAME:-$DEFAULT_CONF}"
+echo $1 $CONFIG_NAME

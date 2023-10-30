@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+
+readonly FORWARDING_PORT=${1:-8081}
+
+readonly HASURA_DEPLOYMENT=$(
+  kubectl get deploy -A --no-headers \
+    -o=custom-columns='NAMESPACE:metadata.namespace,NAME:metadata.name' \
+    -l app=hasura
+)
+if [ -z "$HASURA_DEPLOYMENT" ]; then
+  echo "hasura deployment not found." 1>&2
+  exit 1
+fi
+readonly HASURA_DEPLOYMENT_NAMESPACE=$(echo "$HASURA_DEPLOYMENT" | awk '{print $1}')
+readonly HASURA_DEPLOYMENT_NAME=$(echo "$HASURA_DEPLOYMENT" | awk '{print $2}')
+# Get the hasura secret for login to the web UI.
+readonly ADMIN_SECRET=$(
+  kubectl get deploy "$HASURA_DEPLOYMENT_NAME" -n "$HASURA_DEPLOYMENT_NAMESPACE" \
+    -o=jsonpath='{.spec.template.spec.containers[?(@.name=="hasura")].env[?(@.name=="HASURA_GRAPHQL_ADMIN_SECRET")].value}'
+)
+
+readonly HASURA_SERVICE=$(
+  kubectl get svc -A --no-headers \
+    -o=custom-columns='NAMESPACE:metadata.namespace,NAME:metadata.name' \
+    -l app=hasura
+)
+if [ -z "$HASURA_SERVICE" ]; then
+  echo "hasura service not found." 1>&2
+  exit 1
+fi
+readonly HASURA_SERVICE_NAMESPACE=$(echo "$HASURA_SERVICE" | awk '{print $1}')
+readonly HASURA_SERVICE_NAME=$(echo "$HASURA_SERVICE" | awk '{print $2}')
+
+echo "[HASURA client]"
+echo "admin-secret = $ADMIN_SECRET"
+echo "port = $FORWARDING_PORT"
+echo
+kubectl port-forward "svc/$HASURA_SERVICE_NAME" -n "$HASURA_SERVICE_NAMESPACE" --address 0.0.0.0 "$FORWARDING_PORT:80"

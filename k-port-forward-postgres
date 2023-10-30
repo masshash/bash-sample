@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+
+readonly FORWARDING_PORT=${1:-5432}
+
+readonly PGMASTER_POD=$(
+  kubectl get pods -A --no-headers \
+    -o custom-columns='NAMESPACE:metadata.namespace,NAME:metadata.name' \
+    -l application=spilo,cluster-name=acid-minimal-cluster,spilo-role=master
+)
+if [ -z "$PGMASTER_POD" ]; then
+  echo "PostgreSQL muster pod not found." 1>&2
+  exit 1
+fi
+readonly PGMASTER_POD_NAMESPACE=$(echo "$PGMASTER_POD" | awk '{print $1}')
+readonly PGMASTER_POD_NAME=$(echo "$PGMASTER_POD" | awk '{print $2}')
+
+readonly PGPASSWORD=$(
+  kubectl get secret postgres.acid-minimal-cluster.credentials.postgresql.acid.zalan.do \
+    -n "$PGMASTER_POD_NAMESPACE" \
+    -o 'jsonpath={.data.password}' \
+  | base64 -d
+)
+
+echo "[PostgreSQL master]"
+echo "user = postgres"
+echo "password = $PGPASSWORD"
+echo "port = $FORWARDING_PORT"
+echo
+kubectl port-forward "pod/$PGMASTER_POD_NAME" -n "$PGMASTER_POD_NAMESPACE" --address 0.0.0.0 "$FORWARDING_PORT:5432"
